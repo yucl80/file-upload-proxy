@@ -1,0 +1,43 @@
+package yucl.learn.demo;
+
+import org.apache.catalina.filters.RequestDumperFilter;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.web.MultipartAutoConfiguration;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.core.io.PathResource;
+import org.springframework.web.multipart.commons.CommonsMultipartResolver;
+
+import javax.servlet.Filter;
+import java.io.IOException;
+
+@EnableAutoConfiguration(exclude={MultipartAutoConfiguration.class})
+@SpringBootApplication
+public class FileProxyServerTomcatApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(FileProxyServerTomcatApplication.class, args);
+    }
+
+    @Bean
+    public FilterRegistrationBean requestDumperFilter() {
+        FilterRegistrationBean registration = new FilterRegistrationBean();
+        Filter requestDumperFilter = new RequestDumperFilter();
+        registration.setFilter(requestDumperFilter);
+        registration.addUrlPatterns("/*");
+        return registration;
+    }
+
+    @Bean(name="multipartResolver")
+    public CommonsMultipartResolver getResolver() throws IOException {
+        CommonsMultipartResolver resolver = new CommonsMultipartResolver();
+       // resolver.setUploadTempDir(new PathResource("f:/temp"));
+        //Set the maximum allowed size (in bytes) for each individual file.
+        //resolver.setMaxUploadSizePerFile(5242880);//5MB
+        //You may also set other available properties.
+        return resolver;
+    }
+
+}
