@@ -3,7 +3,6 @@ package yucl.learn.demo.fs.service.impl;
 import org.apache.commons.fileupload.FileItem;
 import org.apache.commons.fileupload.disk.DiskFileItem;
 import org.apache.commons.io.IOUtils;
-import org.apache.http.Header;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,9 +16,7 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.Part;
-import java.io.File;
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.channels.Channels;
@@ -121,7 +118,8 @@ public class HttpRequestProxyServiceImpl implements HttpRequestProxyService {
                     }
                 }
                 IOUtils.copy(httpURLConnection.getInputStream(), response.getOutputStream());
-
+                response.getOutputStream().flush();
+                response.getOutputStream().close();
 
             }
         } catch (IOException e) {
@@ -134,7 +132,7 @@ public class HttpRequestProxyServiceImpl implements HttpRequestProxyService {
         try {
             URL myURL = new URL(appProperties.getFileDownloadUri() + "/" + fileId);
             HttpURLConnection httpURLConnection = (HttpURLConnection) myURL.openConnection();
-            httpURLConnection.setRequestMethod("POST");
+            httpURLConnection.setRequestMethod("GET");
             httpURLConnection.setRequestProperty("charset", request.getCharacterEncoding());
             httpURLConnection.setUseCaches(false);
             httpURLConnection.setDoInput(true);
@@ -175,12 +173,12 @@ public class HttpRequestProxyServiceImpl implements HttpRequestProxyService {
             String crlf = "\r\n";
             String twoHyphens = "--";
             OutputStream outputStream = httpURLConnection.getOutputStream();
-            outputStream.write((twoHyphens + boundary + crlf).getBytes("UTF-8"));
-            outputStream.write(("Content-Type:" + fileItem.getContentType() + crlf).getBytes("UTF-8"));
-            outputStream.write(("Content-Disposition: form-data; name=\"" + fileItem.getFieldName() + "\";filename=\"" +
-                    fileItem.getName() + "\"" + crlf).getBytes("UTF-8"));
-            outputStream.write(crlf.getBytes("UTF-8"));
-
+            BufferedWriter httpRequestBodyWriter = new BufferedWriter(new OutputStreamWriter(outputStream,"UTF-8"));
+            httpRequestBodyWriter.write(twoHyphens + boundary + crlf);
+            httpRequestBodyWriter.write("Content-Type:" + fileItem.getContentType() + crlf);
+            httpRequestBodyWriter.write("Content-Disposition: form-data; name=\"" + fileItem.getFieldName() + "\";filename=\"" +
+                    fileItem.getName() + "\"" + crlf);
+            httpRequestBodyWriter.write(crlf);
             try (FileChannel fileChannel = FileChannel.open(file.toPath(), StandardOpenOption.READ)) {
                 final WritableByteChannel outputChannel = Channels.newChannel(outputStream);
                 fileChannel.transferTo(0, file.length(), outputChannel);
@@ -190,23 +188,15 @@ public class HttpRequestProxyServiceImpl implements HttpRequestProxyService {
                     transferred += fileChannel.transferTo(transferred, size - transferred, outputChannel);
                 }
             }
-            outputStream.write(crlf.getBytes("UTF-8"));
-            outputStream.write((twoHyphens + boundary +
-                    twoHyphens + crlf).getBytes("UTF-8"));
+            httpRequestBodyWriter.write(crlf);
+            httpRequestBodyWriter.write(twoHyphens + boundary +          twoHyphens + crlf);
             outputStream.flush();
             outputStream.close();
 
             response.setStatus(httpURLConnection.getResponseCode());
-            Map<String, List<String>> headerFields = httpURLConnection.getHeaderFields();
-            for (Map.Entry<String, List<String>> entry : headerFields.entrySet()) {
-                for (String fieldVal : entry.getValue()) {
-                    //if (!fieldVal.equalsIgnoreCase("content-length"))
-                    //response.addHeader(entry.getKey(), fieldVal);
-                    System.out.println(entry.getKey() + ":" + fieldVal);
-                }
-            }
             IOUtils.copy(httpURLConnection.getInputStream(), response.getOutputStream());
-
+            response.getOutputStream().flush();
+            response.getOutputStream().close();
 
         } catch (IOException e) {
             logger.error("upload file failed ", e);
