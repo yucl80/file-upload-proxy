@@ -64,15 +64,14 @@ public class HttpRequestProxyServiceImpl implements HttpRequestProxyService {
             Map<String, List<String>> headerFields = httpURLConnection.getHeaderFields();
             for (Map.Entry<String, List<String>> entry : headerFields.entrySet()) {
                 for (String fieldVal : entry.getValue()) {
-                    //if (!fieldVal.equalsIgnoreCase("content-length"))
-                    //response.addHeader(entry.getKey(), fieldVal);
-                    System.out.println(entry.getKey() + ":" + fieldVal);
+                    response.setHeader(entry.getKey(), fieldVal);
                 }
             }
             IOUtils.copy(httpURLConnection.getInputStream(), response.getOutputStream());
-        } catch (IOException e) {
-            logger.error(e.getMessage(), e);
-        } catch (ServletException e) {
+            response.getOutputStream().flush();
+            response.getOutputStream().close();
+
+        } catch (IOException | ServletException e) {
             logger.error(e.getMessage(), e);
         }
     }
@@ -112,9 +111,7 @@ public class HttpRequestProxyServiceImpl implements HttpRequestProxyService {
                 Map<String, List<String>> headerFields = httpURLConnection.getHeaderFields();
                 for (Map.Entry<String, List<String>> entry : headerFields.entrySet()) {
                     for (String fieldVal : entry.getValue()) {
-                        //if (!fieldVal.equalsIgnoreCase("content-length"))
-                        //response.addHeader(entry.getKey(), fieldVal);
-                        System.out.println(entry.getKey() + ":" + fieldVal);
+                       response.setHeader(entry.getKey(),fieldVal);
                     }
                 }
                 IOUtils.copy(httpURLConnection.getInputStream(), response.getOutputStream());
@@ -194,6 +191,12 @@ public class HttpRequestProxyServiceImpl implements HttpRequestProxyService {
             outputStream.close();
 
             response.setStatus(httpURLConnection.getResponseCode());
+            Map<String, List<String>> headerFields = httpURLConnection.getHeaderFields();
+            for (Map.Entry<String, List<String>> entry : headerFields.entrySet()) {
+                for (String fieldVal : entry.getValue()) {
+                    response.addHeader(entry.getKey(), fieldVal);
+                }
+            }
             IOUtils.copy(httpURLConnection.getInputStream(), response.getOutputStream());
             response.getOutputStream().flush();
             response.getOutputStream().close();
