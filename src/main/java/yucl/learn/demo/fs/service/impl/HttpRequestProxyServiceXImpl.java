@@ -25,6 +25,7 @@ import org.apache.http.params.HttpParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.commons.CommonsMultipartFile;
 import yucl.learn.demo.fs.cfg.AppProperties;
@@ -56,7 +57,7 @@ import java.util.concurrent.Future;
  * <file-size-threshold>0</file-size-threshold>
  * </multipart-config>
  */
-
+//@Service
 public class HttpRequestProxyServiceXImpl implements HttpRequestProxyService {
     private static final Logger logger = LoggerFactory.getLogger(HttpRequestProxyServiceXImpl.class);
 
@@ -109,23 +110,28 @@ public class HttpRequestProxyServiceXImpl implements HttpRequestProxyService {
     public void handleMultipartFormRequest(final HttpServletRequest request, final HttpServletResponse response, MultipartFile multipartFile) {
 
         try {
-            HttpPost httpPost = new HttpPost(appProperties.getFileUploadUri());
+            try( CloseableHttpClient httpclient = HttpClients.createDefault()) {
+                HttpPost httpPost = new HttpPost(appProperties.getFileUploadUri());
              /*ExtInputStreamBody _file = new ExtInputStreamBody(multipartFile.getInputStream(),
                     ContentType.create(multipartFile.getContentType()), multipartFile.getOriginalFilename(), multipartFile.getSize());*/
 
-            FileItem fileItem = ((CommonsMultipartFile) multipartFile).getFileItem();
-            DiskFileItem diskFileItem = (DiskFileItem) fileItem;
-            FileBody _file = new FileBody(new File(diskFileItem.getStoreLocation().getAbsolutePath()), ContentType.parse(fileItem.getContentType()), fileItem.getName());
+                FileItem fileItem = ((CommonsMultipartFile) multipartFile).getFileItem();
+                DiskFileItem diskFileItem = (DiskFileItem) fileItem;
+                FileBody _file = new FileBody(new File(diskFileItem.getStoreLocation().getAbsolutePath()), ContentType.parse(fileItem.getContentType()), fileItem.getName());
 
-            HttpEntity reqEntity = MultipartEntityBuilder.create().addPart("file", _file).build();
-            httpPost.setEntity(reqEntity);
-            Future<HttpResponse> future = httpAsyncClient.execute(httpPost,null);
-            HttpResponse serverResponse = future.get();
-            for (Header header : serverResponse.getAllHeaders()) {
-                System.out.println(header.getName() + ":" + header.getValue());
+                HttpEntity reqEntity = MultipartEntityBuilder.create().addPart("file", _file).build();
+                httpPost.setEntity(reqEntity);
+                HttpResponse serverResponse = httpclient.execute(httpPost);
+                response.setStatus(serverResponse.getStatusLine().getStatusCode());
+                for (Header header : serverResponse.getAllHeaders()) {
+                    System.out.println(header.getName() + ":" + header.getValue());
+                    response.setHeader(header.getName(),header.getValue());
+                }
+                IOUtils.copy(serverResponse.getEntity().getContent(), response.getOutputStream());
+                response.getOutputStream().flush();
+                response.getOutputStream().close();
             }
-            IOUtils.copy(serverResponse.getEntity().getContent(), response.getOutputStream());
-        } catch (IOException| InterruptedException |ExecutionException e) {
+        } catch (IOException e) {
             logger.error("upload file failed ", e);
 
         }
@@ -152,56 +158,6 @@ public class HttpRequestProxyServiceXImpl implements HttpRequestProxyService {
 
         }
     }
-
-
-    public void handleDownload1(final HttpServletRequest request, final HttpServletResponse response, final String fileId) {
-        final HttpGet httpGet = new HttpGet(appProperties.getFileDownloadUri() + "/" + fileId);
-        Future<HttpResponse> future = httpAsyncClient.execute(httpGet, new FutureCallback<HttpResponse>() {
-            @Override
-            public void completed(HttpResponse result) {
-                response.setStatus(result.getStatusLine().getStatusCode());
-                for (Header header : result.getAllHeaders()) {
-                    System.out.println(header.getName() + ":" + header.getValue());
-                    response.addHeader(header.getName(), header.getValue());
-                }
-                try {
-                    final InputStream inputStream = result.getEntity().getContent();
-                    int x = IOUtils.copy(inputStream, response.getOutputStream());
-                    System.out.println("copy bytes:" + x);
-                    //inputStream.close();
-                    response.getOutputStream().flush();
-                    response.getOutputStream().close();
-                } catch (IOException e) {
-                    logger.error("download file :" + fileId, e);
-                }
-
-            }
-
-            @Override
-            public void failed(Exception ex) {
-                response.setStatus(HttpServletResponse.SC_BAD_GATEWAY);
-                logger.error("download file :" + fileId, ex);
-            }
-
-            @Override
-            public void cancelled() {
-                logger.error("download file :" + fileId + " canceled");
-
-            }
-        });
-        try {
-            HttpResponse result = future.get();
-
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        } catch (ExecutionException e) {
-            e.printStackTrace();
-        }
-
-
-    }
-
-
 
 }
 
