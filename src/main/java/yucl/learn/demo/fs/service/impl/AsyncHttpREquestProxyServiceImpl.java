@@ -12,6 +12,7 @@ import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.mime.MultipartEntityBuilder;
 import org.apache.http.entity.mime.content.FileBody;
+import org.apache.http.entity.mime.content.InputStreamBody;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
@@ -24,6 +25,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.async.DeferredResult;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.commons.CommonsMultipartFile;
@@ -45,6 +47,7 @@ import java.util.concurrent.Future;
 /**
  * Created by YuChunlei on 2017/4/17.
  */
+@Service
 public class AsyncHttpREquestProxyServiceImpl implements AsyncHttpRequestProxyService {
     private static final Logger logger = LoggerFactory.getLogger(AsyncHttpREquestProxyServiceImpl.class);
 
@@ -135,31 +138,78 @@ public class AsyncHttpREquestProxyServiceImpl implements AsyncHttpRequestProxySe
 
     @Override
     public StreamingResponseBody handleDownload(String fileId, HttpServletRequest request, HttpServletResponse response) {
-        return new StreamingResponseBody() {
-            @Override
-            public void writeTo(OutputStream outputStream) throws IOException {
-                try {
-                    HttpGet httpGet = new HttpGet(appProperties.getFileDownloadUri() + "/" + fileId);
-                    Future<HttpResponse> future = httpAsyncClient.execute(httpGet, null);
-                    HttpResponse httpResponse = future.get();
-                    response.setStatus(httpResponse.getStatusLine().getStatusCode());
-                    if (httpResponse.getStatusLine().getStatusCode() == 200) {
-                        for (Header header : httpResponse.getAllHeaders()) {
-                            response.addHeader(header.getName(), header.getValue());
-                        }
-                        final InputStream inputStream = httpResponse.getEntity().getContent();
-                        IOUtils.copy(inputStream, outputStream);
-                        inputStream.close();
+        return outputStream -> {
+            try {
+                HttpGet httpGet = new HttpGet(appProperties.getFileDownloadUri() + "/" + fileId);
+                Future<HttpResponse> future = httpAsyncClient.execute(httpGet, null);
+                HttpResponse httpResponse = future.get();
+                response.setStatus(httpResponse.getStatusLine().getStatusCode());
+                if (httpResponse.getStatusLine().getStatusCode() == 200) {
+                    for (Header header : httpResponse.getAllHeaders()) {
+                        response.addHeader(header.getName(), header.getValue());
                     }
-
-                } catch (IOException | InterruptedException | ExecutionException e) {
-                    response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-                    logger.error("downloadFile failed", e);
-
+                    final InputStream inputStream = httpResponse.getEntity().getContent();
+                    IOUtils.copy(inputStream, outputStream);
+                    inputStream.close();
                 }
 
+            } catch (IOException | InterruptedException | ExecutionException e) {
+                response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                logger.error("downloadFile failed", e);
+
             }
+
         };
 
     }
+}
+
+class ExtInputStreamBody extends InputStreamBody {
+    private long len;
+
+    public ExtInputStreamBody(InputStream in, ContentType contentType, String filename, long len) {
+        super(in, contentType, filename);
+        this.len = len;
+    }
+
+    public ExtInputStreamBody(InputStream in, String filename, long len) {
+        super(in, filename);
+        this.len = len;
+
+    }
+
+    /**
+     * @param in
+     * @param contentType
+     */
+    public ExtInputStreamBody(InputStream in, ContentType contentType) {
+        super(in, contentType);
+
+    }
+
+    @Override
+    public InputStream getInputStream() {
+        return super.getInputStream();
+    }
+
+    @Override
+    public void writeTo(OutputStream out) throws IOException {
+        super.writeTo(out);
+    }
+
+    @Override
+    public String getTransferEncoding() {
+        return super.getTransferEncoding();
+    }
+
+    @Override
+    public long getContentLength() {
+        return this.len;
+    }
+
+    @Override
+    public String getFilename() {
+        return super.getFilename();
+    }
+
 }
