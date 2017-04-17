@@ -48,8 +48,8 @@ import java.util.concurrent.Future;
  * Created by YuChunlei on 2017/4/17.
  */
 @Service
-public class AsyncHttpREquestProxyServiceImpl implements AsyncHttpRequestProxyService {
-    private static final Logger logger = LoggerFactory.getLogger(AsyncHttpREquestProxyServiceImpl.class);
+public class AsyncHttpRequestProxyServiceImpl implements AsyncHttpRequestProxyService {
+    private static final Logger logger = LoggerFactory.getLogger(AsyncHttpRequestProxyServiceImpl.class);
 
     @Autowired
     private AppProperties appProperties;
@@ -60,7 +60,7 @@ public class AsyncHttpREquestProxyServiceImpl implements AsyncHttpRequestProxySe
 
     private CloseableHttpAsyncClient httpAsyncClient;
 
-    public AsyncHttpREquestProxyServiceImpl() {
+    public AsyncHttpRequestProxyServiceImpl() {
         try {
             connectingIOReactor = new DefaultConnectingIOReactor();
             poolingNHttpClientConnectionManager = new PoolingNHttpClientConnectionManager(connectingIOReactor);
